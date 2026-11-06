@@ -1,0 +1,37 @@
+// ==UserScript==
+// @name         記憶聖境 自動練功
+// @namespace    worjy01-crypto
+// @version      1.0
+// @description  依 Base Lv 換圖、自動掛機、自動組隊
+// @match        *://*.hsagame.com/*
+// @match        *://hsagame.com/*
+// @grant        none
+// @run-at       document-idle
+// @updateURL    https://raw.githubusercontent.com/worjy01-crypto/thief/main/msa.user.js
+// @downloadURL  https://raw.githubusercontent.com/worjy01-crypto/thief/main/msa.user.js
+// ==/UserScript==
+(function(){
+var OFF=10,LOW=0,LV_MS=900000,TOWN_MS=120000,IDLE_MS=60000,PT_MS=300000,PT_WAIT=180000;
+if(window.__msaLv)return;if(!document.getElementById('msLv')){setTimeout(arguments.callee,3000);return;}var SV=true;try{SV=localStorage.getItem('msaAutoOn')!=='0';}catch(e){}
+var A={on:SV,msg:SV?'已開啟（點這個標籤可以關閉）':'已關閉（點這個標籤可以開啟）',next:0,town:0,idle:0,tries:0,coolT:0,coolI:0,mapm:'',ptm:'',busy:false,ptNext:Date.now()+30000,moved:0};
+window.__msaLv=A;
+var $=function(id){return document.getElementById(id);};
+var sleep=function(ms){return new Promise(function(r){setTimeout(r,ms);});};
+var txt=function(e){return (e.textContent||'').replace(/\s+/g,' ').trim();};
+var vis=function(e){return e.getClientRects().length>0;};
+var btns=function(re,root){return [].slice.call((root||document).querySelectorAll('button,[role=button],a')).filter(function(b){return vis(b)&&re.test(txt(b));});};
+var rng=function(s){var m=/Lv\.?\s?(\d+)\s?[–—\-]\s?(\d+)/.exec(s||'');return m?[+m[1],+m[2]]:null;};
+var ok=function(r,lv){return r[0]<=lv+OFF&&r[1]>=lv+LOW;};
+var hi=function(a,b){return a[1]>b[1]||(a[1]===b[1]&&a[0]>b[0]);};
+var nameOf=function(b){return((b.childNodes[0]&&b.childNodes[0].textContent)||'').replace(/^(前往|回到)\s*/,'').trim();};
+var pick=function(lv){var best=null,br=null;document.querySelectorAll('#travel button.go').forEach(function(b){if(b.disabled||b.classList.contains('town')||b.classList.contains('world'))return;var r=rng(b.textContent);if(!r||!ok(r,lv))return;if(!br||hi(r,br)){best=b;br=r;}});return best?{b:best,r:br}:null;};
+var lobby=function(){var h=[].slice.call(document.querySelectorAll('body *')).filter(function(e){return vis(e)&&/^組隊大廳\s*[（(][^）)]+[）)]$/.test(txt(e));});return h.length?h[h.length-1]:null;};
+var panelOf=function(e){var p=e;while(p&&p!==document.body){if(getComputedStyle(p).position==='fixed')return p;p=p.parentElement;}return document.body;};
+var openP=async function(){if(lobby())return true;for(var round=0;round<2;round++){var c=btns(/^隊伍\s*\d*$/);c.sort(function(a,b){return (/\d/.test(txt(b))?1:0)-(/\d/.test(txt(a))?1:0);});for(var i=0;i<c.length;i++){c[i].click();for(var k=0;k<6;k++){await sleep(500);if(lobby())return true;}}var nav=btns(/^獵?\s*狩獵$/);if(!nav.length)break;nav[0].click();await sleep(1500);}return false;};
+var closeP=function(){var h=lobby();if(!h)return;var p=panelOf(h);var x=[].slice.call(p.querySelectorAll('button')).filter(function(b){return vis(b)&&(/^[×✕✖xX]$/.test(txt(b))||/關閉|close/i.test(b.getAttribute('aria-label')||b.title||''));});if(x.length){x[0].click();}else{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));}};
+var members=function(root){var all=[].slice.call(root.querySelectorAll('*')).filter(function(e){var t=txt(e);return vis(e)&&t.length<120&&/Lv\.\s?\d+/.test(t)&&/[（(][^）)]*[）)]/.test(t)&&!/隊長|帶上分身|招募/.test(t);});return all.filter(function(e){return !all.some(function(o){return o!==e&&e.contains(o);});});};
+var party=async function(){A.busy=true;A.msg='整理隊伍中…';A.show();var oc=window.confirm;try{if(!await openP()){A.ptm='找不到隊伍畫面';return;}await sleep(800);var root=panelOf(lobby());var lv=btns(/^離開旅隊$/,root)[0];if(lv){var ms=members(root),same=ms.filter(function(e){return /[（(]同圖/.test(txt(e));}).length;if(!ms.length){A.ptm='讀不到隊員，先不動';return;}if(same*2>ms.length){A.ptm='隊伍 '+same+'/'+ms.length+' 人同圖，不換';return;}window.confirm=function(){return true;};lv.click();await sleep(1200);var cf=btns(/^(確定|確認|確定離開)$/);if(cf.length)cf[0].click();await sleep(1500);window.confirm=oc;if(!lobby()){await openP();await sleep(800);}if(lobby()&&btns(/^離開旅隊$/,panelOf(lobby())).length){A.ptm='離隊失敗，請手動檢查';return;}}var h=lobby();if(!h){A.ptm='離隊後找不到組隊大廳';return;}root=panelOf(h);var rf=btns(/^重新整理$/,root)[0];if(rf){rf.click();await sleep(1000);}var jb=[];for(var k=0;k<10;k++){jb=btns(/^加入$/,root);if(jb.length)break;await sleep(600);}h=lobby();var cm=/[（(]([^）)]+)[）)]/.exec(txt(h));var cur=cm?cm[1].trim():'';var best=null,bn=-1,bt=-1,bname='';jb.forEach(function(b){var r=b;while(r&&r!==root&&!/隊長/.test(txt(r)))r=r.parentElement;if(!r||r===root)return;var t=txt(r);if(/我的旅隊/.test(t))return;var mm=/[（(]同圖\s*(\d+)\s*人[）)]/.exec(t);if(!mm)return;var pre=t.slice(0,mm.index).replace(/\s+/g,''),cn=cur.replace(/\s+/g,'');if(cn&&pre.slice(-cn.length)!==cn)return;var n=+mm[1],tm=/(\d+)\s*\/\s*\d+/.exec(t),tot=tm?+tm[1]:0;if(n>bn||(n===bn&&tot>bt)){best=b;bn=n;bt=tot;bname=t.split(/\s\d+\s*\/\s*\d+/)[0];}});if(!best){A.ptm='沒有可直接加入的同圖隊伍（'+cur+'），下次再找';return;}best.click();await sleep(1500);A.ptm='已加入「'+bname+'」（同圖 '+bn+' 人）';}catch(e){A.ptm='隊伍處理錯誤：'+e.message;}finally{window.confirm=oc;try{closeP();}catch(e){}A.ptNext=Date.now()+PT_MS;A.busy=false;}};
+A.show=function(){var e=$('msaLvLabel');if(!e){e=document.createElement('div');e.id='msaLvLabel';e.style.cssText='position:fixed;left:8px;bottom:8px;z-index:2147483647;background:rgb(20,28,48);color:white;padding:4px 10px;border-radius:6px;font:12px sans-serif;cursor:pointer;opacity:0.85;max-width:90vw';e.onclick=function(){A.on=!A.on;A.next=0;A.msg=A.on?'已開啟':'已關閉';try{localStorage.setItem('msaAutoOn',A.on?'1':'0');}catch(x){}A.show();};document.body.appendChild(e);}var t=(A.on?'自動練功：':'自動練功（已關閉）：')+A.msg;if(e.textContent!==t)e.textContent=t;};
+var run=function(){if(A.busy)return;try{var now=Date.now(),lvE=$('msLv'),m=lvE&&/Base\s*(\d+)/.exec(lvE.textContent);if(!m){A.msg='讀不到 Base 等級';return;}var lv=+m[1],mr=$('mapRange'),mt=mr?mr.textContent:'',cr=rng(mt),ab=$('autoBtn'),head='Base '+lv+'（合適 Lv.'+(lv+LOW)+'–'+(lv+OFF)+'）：';if(!cr){if(!A.town)A.town=now;var wait=TOWN_MS-(now-A.town);if(wait>0){A.msg=head+'在城鎮，'+Math.ceil(wait/1000)+' 秒後自動回去練功';return;}if(now<A.coolT)return;var p=pick(lv),b,why='合適的圖',nm;if(p){b=p.b;nm=nameOf(b);}else{b=document.querySelector('#travel button[data-recent-map]:not([disabled])');why='上次練功的圖';nm=b?b.textContent.trim():'';}A.coolT=now+60000;if(!b){A.msg=head+'在城鎮，找不到可以回去的圖';return;}b.click();A.moved=now;A.msg=head+'從城鎮前往'+why+'：'+nm;return;}A.town=0;var where=mt.indexOf('區域探索')<0?'迷宮':'地圖';if(now>=A.next){A.next=now+LV_MS;var p2=pick(lv),cur='目前'+where+'（'+cr[0]+'–'+cr[1]+'）';if(p2&&(!ok(cr,lv)||hi(p2.r,cr))){var n2=nameOf(p2.b);p2.b.click();A.moved=now;A.mapm='已從'+where+'前往 '+n2+'（'+p2.r[0]+'–'+p2.r[1]+'）';A.coolI=now+20000;A.idle=0;}else if(ok(cr,lv)){A.mapm=cur+'合適';}else{A.mapm=cur+'不合適，但相鄰沒有合適的圖，不換';}}var at=ab?ab.textContent:'',am='';if(!ab){am='找不到掛機按鈕';}else if(at.indexOf('停止掛機')>=0){A.idle=0;A.tries=0;am='掛機中';}else if(at.indexOf('開始掛機')>=0){if(!A.idle)A.idle=now;var w2=IDLE_MS-(now-A.idle);if(now<A.coolI){am='稍後開始掛機';}else if(w2>0){am='未掛機，'+Math.ceil(w2/1000)+' 秒後自動開始';}else if(A.tries>=3){am='按了 3 次還是沒開始掛機，請手動檢查（可能缺藥或有提示視窗）';}else{ab.click();A.tries++;A.coolI=now+30000;am='已按開始掛機（第 '+A.tries+' 次）';}}else{am='掛機按鈕狀態不明';}A.msg=head+(A.mapm?A.mapm+'｜':'')+am+(A.ptm?'｜'+A.ptm:'');if(now>=A.ptNext&&now-A.moved>PT_WAIT){A.ptNext=now+PT_MS;party();}}catch(e){A.msg='發生錯誤：'+e.message;}};
+setInterval(function(){if(A.on)run();A.show();},5000);run();A.show();
+})();
