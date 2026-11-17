@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         記憶聖境 黑市熱門詞綴提醒
 // @namespace    worjy01-crypto
-// @version      1.1
+// @version      1.2
 // @description  每一批黑市先讀「今日熱門詞綴」，再比對裝備詞綴，有的話推播到 Discord（Webhook 網址只存在你自己的瀏覽器）
 // @match        *://*.hsagame.com/*
 // @match        *://hsagame.com/*
+// @match        *://msa-h-testing.up.railway.app/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM.xmlHttpRequest
 // @grant        GM_getValue
